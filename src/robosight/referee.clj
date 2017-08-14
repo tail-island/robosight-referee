@@ -1,5 +1,6 @@
 (ns robosight.referee
-  (:require   (clojure.core [async         :as async])
+  (:require   (clojure      [string        :as string])
+              (clojure.core [async         :as async])
               (clojure.java [io            :as io])
               (clojure.math [combinatorics :as combinatorics]))
   (:import    (java.io PrintWriter))
@@ -43,30 +44,39 @@
           (.waitFor process)
           (.destroy process))))))
 
-(defn- report
+(defn- results
   []
-  (->> (-> (io/file "./data/results")
-           (.listFiles))
-       (map (fn [game-directory]
-              (let [[program-name-0 program-name-1] (re-seq #"\d+" (.getName game-directory))]
-                [program-name-0
-                 program-name-1
-                 (with-open [reader (io/reader (format "%s/stdout.txt" (.getPath game-directory)))]
-                   (let [winner (clojure.edn/read-string (last (iterator-seq (.iterator (.lines reader)))))]
-                     (when-not (contains? winner :winner)
-                       (throw (ex-info "wrong stdout...")))
-                     (:winner winner)))])))
-       (mapcat (fn [[program-name-0 program-name-1 winner]]
-                 (case winner
-                   0 [[program-name-0 program-name-1 "〇"] [program-name-1 program-name-0 "×"]]
-                   1 [[program-name-1 program-name-0 "〇"] [program-name-0 program-name-1 "×"]]
-                   [[program-name-1 program-name-0 "ー"] [program-name-0 program-name-1 "ー"]])))
-       (sort)
-       (clojure.pprint/pprint)  ; TODO: まともに出力する……。
-       ))
+  (let [results (apply hash-map (->> (-> (io/file "./data/results")
+                                         (.listFiles))
+                                     (map (fn [game-directory]
+                                            (let [[program-name-0 program-name-1] (re-seq #"\d+" (.getName game-directory))]
+                                              [program-name-0
+                                               program-name-1
+                                               (with-open [reader (io/reader (format "%s/stdout.txt" (.getPath game-directory)))]
+                                                 (let [winner (clojure.edn/read-string (last (iterator-seq (.iterator (.lines reader)))))]
+                                                   (when-not (contains? winner :winner)
+                                                     (throw (ex-info "wrong stdout...")))
+                                                   (:winner winner)))])))
+                                     (mapcat (fn [[program-name-0 program-name-1 winner]]
+                                               (case winner
+                                                 0 [[program-name-0 program-name-1] 1.0 [program-name-1 program-name-0] 0.0]
+                                                 1 [[program-name-1 program-name-0] 1.0 [program-name-0 program-name-1] 0.0]
+                                                 [[program-name-1 program-name-0] 0.5 [program-name-0 program-name-1] 0.5])))))
+        program-names (->> (keys results)
+                           (map first)
+                           (distinct)
+                           (sort))]
+    (map (fn [program-name-0]
+           (map (fn [program-name-1]
+                  (get results [program-name-0 program-name-1]))
+                program-names))
+         program-names)))
 
 (defn -main
   [& args]
   (cleanup)
   (fight)
-  (report))
+  (let [results (results)]
+    (doseq [columns results]
+      (println (string/join "\t" (cons (reduce + (keep identity columns)) columns))))
+    (clojure.pprint/pprint results)))
