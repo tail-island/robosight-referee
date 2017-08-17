@@ -21,9 +21,11 @@
   []
   (doseq [[program-directory-1, program-directory-2] (->> (-> (io/file "./data/programs")
                                                               (.listFiles)
+                                                              (sort)
                                                               (combinatorics/combinations 2))
                                                           (map #(cond-> %
                                                                   (> (rand) 0.5) (reverse))))]
+    (Thread/sleep 3000)  ; CPUが過熱しているかもしれないので、少し休ませます。動いてないとクロックが落ちちゃう問題は、WindowsのPower PlanをHigh Performanceにして回避で。
     (println (format "%s vs. %s" (.getName program-directory-1) (.getName program-directory-2)))
     (let [process (-> (Runtime/getRuntime)
                       (.exec (format "java -jar ./bin/robosight-battlefield-0.1.0-standalone.jar \"cmd /C run.bat\" %s \"cmd /C run.bat\" %s"
