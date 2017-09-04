@@ -38,12 +38,12 @@
                                          (repeat (format "./data/results/%s-%s" (.getName program-directory-1) (.getName program-directory-2)))
                                          ["stdout.txt" "stderr.txt"]))]
         (io/make-parents to-file)
-        (let [writer (PrintWriter. (io/writer to-file))]
-          (async/go-loop[]
-            (if-let [s (.readLine reader)]
-              (do (.println writer s)
-                  (recur))
-              (.close writer)))))
+        (async/go
+          (with-open [writer (PrintWriter. (io/writer to-file))]
+            (loop []
+              (when-let [s (.readLine reader)]
+                (.println writer s)
+                (recur))))))
       (.waitFor process)
       (.destroy process))))
 
