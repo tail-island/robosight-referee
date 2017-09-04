@@ -38,13 +38,14 @@
                                          (repeat (format "./data/results/%s-%s" (.getName program-directory-1) (.getName program-directory-2)))
                                          ["stdout.txt" "stderr.txt"]))]
         (io/make-parents to-file)
-        (with-open [writer (PrintWriter. (io/writer to-file))]
-          (async/go-loop []
-            (when-let [s (.readLine reader)]
-              (.println writer s)
-              (recur)))
-          (.waitFor process)
-          (.destroy process))))))
+        (let [writer (PrintWriter. (io/writer to-file))]
+          (async/go-loop[]
+            (if-let [s (.readLine reader)]
+              (do (.println writer s)
+                  (recur))
+              (.close writer)))))
+      (.waitFor process)
+      (.destroy process))))
 
 (defn- results
   []
@@ -57,7 +58,7 @@
                                                (with-open [reader (io/reader (format "%s/stdout.txt" (.getPath game-directory)))]
                                                  (let [winner (clojure.edn/read-string (last (iterator-seq (.iterator (.lines reader)))))]
                                                    (when-not (contains? winner :winner)
-                                                     (throw (ex-info "wrong stdout...")))
+                                                     (throw (ex-info "wrong stdout..." {})))
                                                    (:winner winner)))])))
                                      (mapcat (fn [[program-name-0 program-name-1 winner]]
                                                (case winner
